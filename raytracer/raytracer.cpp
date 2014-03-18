@@ -227,7 +227,16 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
 
     //TODO:
     // You'll want to call shadeRay recursively (with a different ray, 
-    // of course) here to implement reflection/refraction effects.  
+    // of course) here to implement reflection/refraction effects.
+
+    // For refraction, use Snell's Law:
+    // new vector d:
+    // d ~= (-c2/c1 * r) + (c2/c1 * cos(th1) - cos(th2)) * N
+    // sin(th1) / sin(th2) = c1 / c2
+
+    // Note if c2 > c1, ray behnds away from the normal, so you might get non-acute angle.
+    // => total internal reflection, ray doesn't go through to the other side of the 
+    // material. So check that incoming angle isn't such that sin*(th1) >= c1/c2
 
     return col; 
 }   
@@ -253,10 +262,15 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
             imagePlane[1] = (-double(height)/2 + 0.5 + i)/factor;
             imagePlane[2] = -1;
 
+            // Convert origin of the ray to word space, and 
+
             // TODO: Convert ray to world space and call 
-            // shadeRay(ray) to generate pixel colour.  
+            // shadeRay(ray) to generate pixel colour.
+            Point3D originWorld = viewToWorld * origin;
+            Vector3D dirWorld = (viewToWorld * imagePlane) - originWorld;
+            dirWorld.normalize();
             
-            Ray3D ray(eye, viewToWorld * view);
+            Ray3D ray(originWorld, dirWorld);
 
             Colour col = shadeRay(ray); 
 
@@ -295,7 +309,7 @@ int main(int argc, char* argv[])
     Material gold( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 
             Colour(0.628281, 0.555802, 0.366065), 
             51.2 );
-    Material jade( Colour(0, 0, 0), Colour(0.54, 0.89, 0.63), 
+    Material jade( Colour(0.0, 0.0, 0.0), Colour(0.54, 0.89, 0.63), 
             Colour(0.316228, 0.316228, 0.316228), 
             12.8 );
 
