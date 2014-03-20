@@ -17,6 +17,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <stdio.h>
+#include <unistd.h>
 
 Raytracer::Raytracer() : _lightSource(NULL) {
     _root = new SceneDagNode();
@@ -54,6 +55,22 @@ LightListNode* Raytracer::addLightSource( LightSource* light ) {
     LightListNode* tmp = _lightSource;
     _lightSource = new LightListNode( light, tmp );
     return _lightSource;
+}
+
+void Raytracer::setAA(int num_samples) {
+    _aa_samples = num_samples;
+}
+
+int Raytracer::getAA() {
+    return _aa_samples;
+}
+
+void Raytracer::enableShadows() {
+    _shadows_enabled = true;
+}
+
+void Raytracer::disableShadows() {
+    _shadows_enabled = false;
 }
 
 void Raytracer::rotate( SceneDagNode* node, char axis, double angle ) {
@@ -191,13 +208,15 @@ void Raytracer::computeShading( Ray3D& ray ) {
         // Cast a ray between the intersection point and the light source.
         // If it hits something, the point is in shadow, so shade only
         // using ambient lighting.
+        // TODO: move this to light->shade method.
         Vector3D l = curLight->light->get_position() - ray.intersection.point;
         double light_dist = l.length();
         l.normalize();
         Ray3D shadow(ray.intersection.point + 0.001 * l, l);
         traverseScene(_root, shadow);
 
-        if (shadow.intersection.none
+        if (!_shadows_enabled
+            || shadow.intersection.none
             || (shadow.intersection.point - ray.intersection.point).length() >= light_dist) {
             curLight->light->shade(ray);
         } else {
@@ -273,21 +292,48 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
             // image plane is at z = -1.
             Point3D origin(0, 0, 0);
             Point3D imagePlane;
-            imagePlane[0] = (-double(width)/2 + 0.5 + j)/factor;
-            imagePlane[1] = (-double(height)/2 + 0.5 + i)/factor;
-            imagePlane[2] = -1;
+            Colour col;
 
-            // Convert origin of the ray to word space, and 
+            // If an anti-aliasing mode has been specified, perform stratified sampling.
+            if (getAA()) {
+                int n = getAA();
+                for (double p = 0; p < n; p++) {
+                    for (double q = 0; q < n; q++) {
+                        double r = (rand() % 100) / 100.0;
+                        double s = (rand() % 100) / 100.0;
+                        imagePlane[0] = (-double(width)/2 + j + (p + r) / n)/factor;
+                        imagePlane[1] = (-double(height)/2 + i + (q + s) / n)/factor;
+                        imagePlane[2] = -1;
 
-            // TODO: Convert ray to world space and call 
-            // shadeRay(ray) to generate pixel colour.
+                        Vector3D dir = viewToWorld * (imagePlane - origin);
+                        dir.normalize();
 
-            Vector3D dir = viewToWorld * (imagePlane - origin);
-            dir.normalize();
-            
-            Ray3D ray(viewToWorld * origin, dir);
+                        Ray3D ray(viewToWorld * origin, dir);
 
-            Colour col = shadeRay(ray); 
+                        col = col + shadeRay(ray);
+                    }
+                }
+
+                // Calculate the average colour of the pixel.
+                col = (1.0 / (n * n)) * col;
+
+            } else {
+                imagePlane[0] = (-double(width)/2 + 0.5 + j)/factor;
+                imagePlane[1] = (-double(height)/2 + 0.5 + i)/factor;
+                imagePlane[2] = -1;
+
+                // Convert origin of the ray to word space, and 
+
+                // TODO: Convert ray to world space and call 
+                // shadeRay(ray) to generate pixel colour.
+
+                Vector3D dir = viewToWorld * (imagePlane - origin);
+                dir.normalize();
+                
+                Ray3D ray(viewToWorld * origin, dir);
+
+                col = col + shadeRay(ray);
+            }
 
             _rbuffer[i*width+j] = int(col[0]*255);
             _gbuffer[i*width+j] = int(col[1]*255);
@@ -307,9 +353,26 @@ int main(int argc, char* argv[])
     // assignment.  
     Raytracer raytracer;
     int width = 320; 
-    int height = 240; 
+    int height = 240;
+    raytracer.setAA(0);
 
-    if (argc == 3) {
+    int c;
+    extern char *optarg;
+    extern int optind, optopt, opterr;
+
+    while ((c = getopt(argc, argv, ":a:s")) != -1) {
+        switch (c) {
+            case 'a':
+                raytracer.setAA(atoi(optarg));
+                break;
+            case 's':
+                raytracer.enableShadows();
+            default:
+                break;
+        }
+    }
+
+    if ((argc - optind) == 2) {
         width = atoi(argv[1]);
         height = atoi(argv[2]);
     }
