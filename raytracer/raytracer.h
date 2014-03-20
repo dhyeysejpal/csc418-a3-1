@@ -105,6 +105,12 @@ public:
     // Set the anti-aliasing mode, as a number of samples.
     void setAA(int num_samples);
 
+    // Get the number of rays to sample for soft shadows.
+    int getSS();
+
+    // set the number of rays to sample for soft shadows.
+    void setSS(int num_samples);
+
     // Enable shadows.
     void enableShadows();
 
@@ -148,6 +154,7 @@ private:
     // Rendering settings.
     int _aa_samples; // Number of anti-aliasing samples per pixel.
     bool _shadows_enabled;
+    int _shadow_samples; // Number of samples to take for soft shadows. 
 
     // Pixel buffer.
     unsigned char* _rbuffer;

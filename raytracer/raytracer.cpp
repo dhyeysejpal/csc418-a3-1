@@ -65,6 +65,14 @@ int Raytracer::getAA() {
     return _aa_samples;
 }
 
+void Raytracer::setSS(int num_samples) {
+    _shadow_samples = num_samples;
+}
+
+int Raytracer::getSS() {
+    return _shadow_samples;
+}
+
 void Raytracer::enableShadows() {
     _shadows_enabled = true;
 }
@@ -360,12 +368,21 @@ int main(int argc, char* argv[])
     extern char *optarg;
     extern int optind, optopt, opterr;
 
-    while ((c = getopt(argc, argv, ":a:s")) != -1) {
+    while ((c = getopt(argc, argv, ":a:sS:M")) != -1) {
         switch (c) {
+            case 'M':
+                // Auto-medium settings.
+                raytracer.setAA(3);
+                raytracer.enableShadows();
+                break;
             case 'a':
                 raytracer.setAA(atoi(optarg));
                 break;
             case 's':
+                raytracer.enableShadows();
+                raytracer.setSS(atoi(optarg));
+            case 'S':
+                // Enable soft shadows.
                 raytracer.enableShadows();
             default:
                 break;
@@ -418,7 +435,7 @@ int main(int argc, char* argv[])
     // Render it from a different point of view.
     Point3D eye2(4, 2, 1);
     Vector3D view2(-4, -2, -6);
-    raytracer.render(width, height, eye2, view2, up, fov, (char *) "sig2.bmp");
+    //raytracer.render(width, height, eye2, view2, up, fov, (char *) "sig2.bmp");
 
     Material gold2( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 
             Colour(0, 0, 0), 
