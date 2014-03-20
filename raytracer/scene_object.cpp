@@ -11,7 +11,6 @@
 #include <cmath>
 #include <iostream>
 #include "scene_object.h"
-#include <stdio.h>
 
 bool UnitSquare::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
         const Matrix4x4& modelToWorld ) {
@@ -113,7 +112,7 @@ bool UnitSphere::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
         // But always take the closest one, 
         t = (-1 * b - sqrt(discriminant)) / (2 * a);
 
-        if (!ray.intersection.none && t > ray.intersection.t_value) {
+        if (t <= 0 || (!ray.intersection.none && t > ray.intersection.t_value)) {
             // Intersection point is behind another object.
             return false;
         }
@@ -142,4 +141,3 @@ bool UnitSphere::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
     // No intersection with the sphere.
     return false;
 }
-
