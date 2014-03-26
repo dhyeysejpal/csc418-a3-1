@@ -57,30 +57,6 @@ LightListNode* Raytracer::addLightSource( LightSource* light ) {
     return _lightSource;
 }
 
-void Raytracer::setAA(int num_samples) {
-    _aa_samples = num_samples;
-}
-
-int Raytracer::getAA() {
-    return _aa_samples;
-}
-
-void Raytracer::setSS(int num_samples) {
-    _shadow_samples = num_samples;
-}
-
-int Raytracer::getSS() {
-    return _shadow_samples;
-}
-
-void Raytracer::enableShadows() {
-    _shadows_enabled = true;
-}
-
-void Raytracer::disableShadows() {
-    _shadows_enabled = false;
-}
-
 void Raytracer::rotate( SceneDagNode* node, char axis, double angle ) {
     Matrix4x4 rotation;
     double toRadian = 2*M_PI/360.0;
@@ -207,7 +183,9 @@ void Raytracer::traverseScene( SceneDagNode* node, Ray3D& ray ) {
 }
 
 void Raytracer::computeShading( Ray3D& ray ) {
+    // Rays always have their ambient colour.
     LightListNode* curLight = _lightSource;
+    ray.col = ray.intersection.mat->ambient;
     for (;;) {
         if (curLight == NULL) break;
         // Each lightSource provides its own shading function.
@@ -223,12 +201,9 @@ void Raytracer::computeShading( Ray3D& ray ) {
         Ray3D shadow(ray.intersection.point + 0.001 * l, l);
         traverseScene(_root, shadow);
 
-        if (!_shadows_enabled
-            || shadow.intersection.none
-            || (shadow.intersection.point - ray.intersection.point).length() >= light_dist) {
+        if (!_shadows_enabled || shadow.intersection.none
+                || (shadow.intersection.point - ray.intersection.point).length() >= light_dist) {
             curLight->light->shade(ray);
-        } else {
-            ray.col = ray.intersection.mat->ambient;
         }
 
         curLight = curLight->next;
@@ -264,7 +239,22 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
     // anything.
     if (!ray.intersection.none) {
         computeShading(ray); 
-        col = ray.col;  
+        col = ray.col;
+
+        if (ray.num_bounces < getRecursiveDepth()) {
+            // Fire off more rays originating at the intersection point.
+            Vector3D n(ray.intersection.normal);
+            Vector3D incident = ray.dir - 2 * (n.dot(ray.dir) * n);
+            incident.normalize();
+
+            Ray3D reflection(ray.intersection.point + 0.01 * incident, incident);
+            reflection.num_bounces = ray.num_bounces + 1;
+
+            shadeRay(reflection);
+            if (!reflection.intersection.none) {
+                col = 0.5 * (col + ray.intersection.mat->specular * reflection.col);
+            }
+        }
     }
 
     //TODO:
@@ -279,6 +269,7 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
     // Note if c2 > c1, ray bends away from the normal, so you might get non-acute angle.
     // => total internal reflection, ray doesn't go through to the other side of the 
     // material. So check that incoming angle isn't such that sin*(th1) >= c1/c2
+
 
     return col; 
 }   
@@ -309,6 +300,8 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
                     for (double q = 0; q < n; q++) {
                         double r = (rand() % 100) / 100.0;
                         double s = (rand() % 100) / 100.0;
+
+                        // Apply jittering to where the ray is fired off.
                         imagePlane[0] = (-double(width)/2 + j + (p + r) / n)/factor;
                         imagePlane[1] = (-double(height)/2 + i + (q + s) / n)/factor;
                         imagePlane[2] = -1;
@@ -326,19 +319,17 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
                 col = (1.0 / (n * n)) * col;
 
             } else {
+                // Fire ray off through the centre of the pixel.
                 imagePlane[0] = (-double(width)/2 + 0.5 + j)/factor;
                 imagePlane[1] = (-double(height)/2 + 0.5 + i)/factor;
                 imagePlane[2] = -1;
 
-                // Convert origin of the ray to word space, and 
-
-                // TODO: Convert ray to world space and call 
-                // shadeRay(ray) to generate pixel colour.
 
                 Vector3D dir = viewToWorld * (imagePlane - origin);
                 dir.normalize();
                 
                 Ray3D ray(viewToWorld * origin, dir);
+                ray.num_bounces = 1; // A ray bounces once off of the first object it hits,
 
                 col = col + shadeRay(ray);
             }
@@ -368,7 +359,11 @@ int main(int argc, char* argv[])
     extern char *optarg;
     extern int optind, optopt, opterr;
 
-    while ((c = getopt(argc, argv, ":a:sS:M")) != -1) {
+    // Depth of 1 sets rays to emit themselves once and then
+    // exit the recursive function.
+    raytracer.setRecursiveDepth(1);
+
+    while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::")) != -1) {
         switch (c) {
             case 'M':
                 // Auto-medium settings.
@@ -380,18 +375,30 @@ int main(int argc, char* argv[])
                 break;
             case 's':
                 raytracer.enableShadows();
-                raytracer.setSS(atoi(optarg));
+                //raytracer.setSS(atoi(optarg));
+                break;
             case 'S':
                 // Enable soft shadows.
                 raytracer.enableShadows();
+                break;
+            case 'w':
+                width = atoi(optarg);
+                break;
+            case 'h':
+                height = atoi(optarg);
+                break;
+            case 'r':
+                // Enable reflection and refraction.
+                if (optarg) {
+                    raytracer.setRecursiveDepth(atoi(optarg));
+                } else {
+                    // Allow rays to bounce twice by default.
+                    raytracer.setRecursiveDepth(3);
+                }
+                break;
             default:
                 break;
         }
-    }
-
-    if ((argc - optind) == 2) {
-        width = atoi(argv[1]);
-        height = atoi(argv[2]);
     }
 
     // Camera parameters.
@@ -401,6 +408,8 @@ int main(int argc, char* argv[])
     double fov = 60;
 
     // Defines a point light source.
+    //raytracer.addLightSource( new PointLight(Point3D(0, 0, 5), 
+      //          Colour(0.9, 0.9, 0.9) ) );
     raytracer.addLightSource( new PointLight(Point3D(0, 0, 5), 
                 Colour(0.9, 0.9, 0.9) ) );
 
@@ -424,18 +433,18 @@ int main(int argc, char* argv[])
     raytracer.scale(sphere, Point3D(0, 0, 0), factor1);
 
     raytracer.translate(plane, Vector3D(0, 0, -7)); 
-    raytracer.rotate(plane, 'z', 45); 
+    raytracer.rotate(plane, 'z', 45);
     raytracer.scale(plane, Point3D(0, 0, 0), factor2);
 
 
     // Render the scene, feel free to make the image smaller for
     // testing purposes.    
-    //raytracer.render(width, height, eye, view, up, fov, (char *) "sig1.bmp");
+    raytracer.render(width, height, eye, view, up, fov, (char *) "sig1.bmp");
     
     // Render it from a different point of view.
     Point3D eye2(4, 2, 1);
     Vector3D view2(-4, -2, -6);
-    //raytracer.render(width, height, eye2, view2, up, fov, (char *) "sig2.bmp");
+    raytracer.render(width, height, eye2, view2, up, fov, (char *) "sig2.bmp");
 
     Material gold2( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 
             Colour(0, 0, 0), 
@@ -450,8 +459,8 @@ int main(int argc, char* argv[])
 
     // Render the scene, feel free to make the image smaller for
     // testing purposes.    
-    //raytracer.render(width, height, eye, view, up, fov, (char *) "diffuse1.bmp");
-    //raytracer.render(width, height, eye2, view2, up, fov, (char *) "diffuse2.bmp");
+    raytracer.render(width, height, eye, view, up, fov, (char *) "diffuse1.bmp");
+    raytracer.render(width, height, eye2, view2, up, fov, (char *) "diffuse2.bmp");
 
     // Defines a material for shading.
     Material gold3( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 

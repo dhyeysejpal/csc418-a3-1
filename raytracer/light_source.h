@@ -17,7 +17,7 @@
 class LightSource {
 public:
     virtual void shade( Ray3D& ) = 0;
-    virtual Point3D get_position() const = 0; 
+    virtual Point3D get_position() const = 0;
 };
 
 // A point light is defined by its position in world space and its
@@ -45,17 +45,17 @@ private:
   */
 class AreaLight : public LightSource {
 public:
-    PointLight(Point3D centre, Vector3D a, Vector3D b, Colour col)
-        : _centre(centre), _a(a), _b(b), _n(a.cross(b), _col_ambient(col),
-            _col_diffuse(col), _col_specular(col)) {}
-    PointLight(Point3D centre, Vector3D a, Vector3D b, Colour ambient, Colour diffuse, Colour specular)
-        : _centre(centre), _a(a), _b(b), _n(a.cross(b), _col_ambient(col), _col_diffuse(col),
-            _col_specular(col)) {}
+    AreaLight(Point3D centre, Vector3D a, Vector3D b, Colour col)
+        : _centre(centre), _a(a), _b(b), _n(a.cross(b)), _col_ambient(col),
+            _col_diffuse(col), _col_specular(col) {}
+    AreaLight(Point3D centre, Vector3D a, Vector3D b, Colour ambient, Colour diffuse, Colour specular)
+        : _centre(centre), _a(a), _b(b), _n(a.cross(b)), _col_ambient(ambient), _col_diffuse(diffuse),
+            _col_specular(specular) {}
 
     void shade(Ray3D &ray);
-    Point3D get_centre() const { return _centre; }
+    Point3D get_position() const { return _centre; }
     Vector3D get_a() const { return _a; }
-    vector3D get_b() const { return _b; }
+    Vector3D get_b() const { return _b; }
     Vector3D get_normal() const { return _n; }
 private:
     Point3D _centre;

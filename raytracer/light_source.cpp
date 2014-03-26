@@ -28,7 +28,7 @@ void PointLight::shade(Ray3D& ray) {
     Colour ambient(ray.intersection.mat->ambient);
     ambient = ambient * _col_ambient;
 
-    // Ambient term shouldn't be additive. Set it to whatever light gives the highest ambient term.
+    // Ray colour shouldn't be darker than its brightest ambient component.
     if (ray.col[0] < ambient[0] && ray.col[1] < ambient[1] && ray.col[2] < ambient[2]) {
         ray.col = ambient;
     }

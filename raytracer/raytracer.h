@@ -100,22 +100,26 @@ public:
     void scale( SceneDagNode* node, Point3D origin, double factor[3] );
 
     // Get the anti-aliasing mode, as a number of samples.
-    int getAA();
+    int getAA() { return _aa_samples; }
 
     // Set the anti-aliasing mode, as a number of samples.
-    void setAA(int num_samples);
+    void setAA(int num_samples) { _aa_samples = num_samples; }
 
     // Get the number of rays to sample for soft shadows.
-    int getSS();
+    int getSS() { return _shadow_samples; }
 
     // set the number of rays to sample for soft shadows.
-    void setSS(int num_samples);
+    void setSS(int num_samples) { _shadow_samples = num_samples; }
 
     // Enable shadows.
-    void enableShadows();
+    void enableShadows() { _shadows_enabled = true; }
 
     // Disable shadows.
-    void disableShadows();
+    void disableShadows() { _shadows_enabled = false; }
+
+    int getRecursiveDepth() { return _max_recursive_depth; }
+
+    void setRecursiveDepth(int depth) { _max_recursive_depth = depth; }
 
     
 private:
@@ -152,9 +156,13 @@ private:
     SceneDagNode *_root;
 
     // Rendering settings.
-    int _aa_samples; // Number of anti-aliasing samples per pixel.
+    // Number of anti-aliasing samples per pixel.
+    int _aa_samples;
     bool _shadows_enabled;
-    int _shadow_samples; // Number of samples to take for soft shadows. 
+     // Number of samples to take for soft shadows.
+    int _shadow_samples;
+    // The maximum number of times that a ray is allowed to bounce.
+    int _max_recursive_depth;
 
     // Pixel buffer.
     unsigned char* _rbuffer;
