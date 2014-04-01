@@ -178,6 +178,8 @@ struct Ray3D {
     Colour col;
     // The number of times this ray this bounced or deflected.
     int num_bounces;
+    // True if the ray is currently in shadow.
+    bool in_shadow;
 };
 #endif
 

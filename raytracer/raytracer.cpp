@@ -183,36 +183,40 @@ void Raytracer::traverseScene( SceneDagNode* node, Ray3D& ray ) {
 }
 
 void Raytracer::computeShading( Ray3D& ray ) {
-    // Rays always have their ambient colour.
-    LightListNode* curLight = _lightSource;
-    ray.col = ray.intersection.mat->ambient;
-    for (;;) {
+    Colour col(0.0, 0.0, 0.0);
+    for (LightListNode *curLight = _lightSource; curLight != NULL; curLight = curLight->next) {
         if (curLight == NULL) break;
         // Each lightSource provides its own shading function.
-
+        int i;
         // TODO: Implement shadows here if needed.
-        // Cast a ray between the intersection point and the light source.
-        // If it hits something, the point is in shadow, so shade only
-        // using ambient lighting.
-        // TODO: move this to light->shade method.
-        Vector3D l = curLight->light->get_position() - ray.intersection.point;
-        double light_dist = l.length();
-        l.normalize();
-        Ray3D shadow(ray.intersection.point + 0.001 * l, l);
-        shadow.num_bounces = ray.num_bounces;
-        traverseScene(_root, shadow);
+        for (i = 0; i < _shadow_samples; i++) {
+            // Cast a ray between the intersection point and the light source.
+            // If it hits something, the point is in shadow, so shade only
+            // using ambient lighting.
+            Vector3D l = curLight->light->get_position() - ray.intersection.point;
+            double light_dist = l.length();
+            l.normalize();
+            Ray3D shadow(ray.intersection.point + 0.001 * l, l);
+            shadow.num_bounces = ray.num_bounces;
+            traverseScene(_root, shadow);
 
-        if (!_shadows_enabled || shadow.intersection.none
-                || (shadow.intersection.point - ray.intersection.point).length() >= light_dist) {
-            // Debug issue with planar shading
-            if (_shadows_enabled && !shadow.intersection.none) {
-                printf("We have a problem here.\n");
-                return;
-            }
+            ray.in_shadow = _shadows_enabled
+                && !shadow.intersection.none
+                && (shadow.intersection.point - ray.intersection.point).length() < light_dist;
+            
             curLight->light->shade(ray);
+
+            if (!_shadows_enabled || !curLight->light->supports_soft_shadows()) {
+                // For efficiency, only perform multiple shadow 
+                break;
+            }
         }
 
-        curLight = curLight->next;
+        if (i > 0) {
+            // Take the average of the number of samples taken.
+            ray.col = (1.0 / i) * ray.col; 
+        }
+        ray.col.clamp();
     }
 }
 
@@ -374,6 +378,8 @@ int main(int argc, char* argv[])
     // Depth of 1 sets rays to emit themselves once and then
     // exit the recursive function.
     raytracer.setRecursiveDepth(0);
+    // Raytracer uses at most one shadow sample unless overwritten.
+    raytracer.setSS(1);
 
     while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::")) != -1) {
         switch (c) {
@@ -381,17 +387,19 @@ int main(int argc, char* argv[])
                 // Auto-medium settings.
                 raytracer.setAA(3);
                 raytracer.enableShadows();
+                raytracer.setSS(10);
+                raytracer.setRecursiveDepth(3);
                 break;
             case 'a':
                 raytracer.setAA(atoi(optarg));
                 break;
             case 's':
                 raytracer.enableShadows();
-                //raytracer.setSS(atoi(optarg));
                 break;
             case 'S':
                 // Enable soft shadows.
                 raytracer.enableShadows();
+                raytracer.setSS(atoi(optarg));
                 break;
             case 'w':
                 width = atoi(optarg);
@@ -420,8 +428,8 @@ int main(int argc, char* argv[])
     double fov = 60;
 
     // Defines a point light source.
-    raytracer.addLightSource( new PointLight(Point3D(0, 7, 5), 
-                Colour(0.9, 0.9, 0.9) ) );
+    raytracer.addLightSource( new AreaLight(Point3D(0, 7, 5),
+        Vector3D(1, 0, 0), Vector3D(0, 0, 1), Colour(0.9, 0.9, 0.9) ) );
 
     // Defines a material for shading.
     Material gold( Colour(0.24725, 0.1995, 0.0745), Colour(0.75164, 0.60648, 0.22648), 
@@ -441,7 +449,7 @@ int main(int argc, char* argv[])
     
     // Apply some transformations to the unit square.
     double factor1[3] = { 1.0, 2.0, 1.0 };
-    double factor2[3] = { 2.0, 2.0, 2.0 };
+    double factor2[3] = { 4.0, 4.0, 4.0 };
     double table_factor[3] = { 24.0, 24.0, 60.0 };
     raytracer.translate(sphere, Vector3D(0, 0, -5));    
     raytracer.rotate(sphere, 'x', -45); 
@@ -457,10 +465,10 @@ int main(int argc, char* argv[])
     raytracer.scale(plane, Point3D(0, 0, 0), factor2);
     
     // Render it from a different point of view.
-    Point3D eye2(4, 2, 1);
+    Point3D eye2(40, 20, 10);
     Vector3D view2(-4, -2, -6);
 
-    raytracer.render(width, height, eye, view, up, fov, (char *) "img1.bmp");
+    //raytracer.render(width, height, eye, view, up, fov, (char *) "img1.bmp");
     raytracer.render(width, height, eye2, view2, up, fov, (char *) "img2.bmp");
     
     return 0;
