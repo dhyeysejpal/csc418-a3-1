@@ -199,10 +199,16 @@ void Raytracer::computeShading( Ray3D& ray ) {
         double light_dist = l.length();
         l.normalize();
         Ray3D shadow(ray.intersection.point + 0.001 * l, l);
+        shadow.num_bounces = ray.num_bounces;
         traverseScene(_root, shadow);
 
         if (!_shadows_enabled || shadow.intersection.none
                 || (shadow.intersection.point - ray.intersection.point).length() >= light_dist) {
+            // Debug issue with planar shading
+            if (_shadows_enabled && !shadow.intersection.none) {
+                printf("We have a problem here.\n");
+                return;
+            }
             curLight->light->shade(ray);
         }
 
@@ -252,7 +258,8 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
 
             shadeRay(reflection);
             if (!reflection.intersection.none) {
-                col = 0.5 * (col + ray.intersection.mat->specular * reflection.col);
+                col = col + 0.25 * ray.intersection.mat->specular * reflection.col;
+                col.clamp();
             }
         }
     }
@@ -293,11 +300,15 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
             Point3D imagePlane;
             Colour col;
 
-            // If an anti-aliasing mode has been specified, perform stratified sampling.
+            if (i == 200 && j == 183) {
+                printf("Examine here.\n");
+            }
+
             if (getAA()) {
+                // If an anti-aliasing mode has been specified, perform stratified sampling.
                 int n = getAA();
-                for (double p = 0; p < n; p++) {
-                    for (double q = 0; q < n; q++) {
+                for (int p = 0; p < n; p++) {
+                    for (int q = 0; q < n; q++) {
                         double r = (rand() % 100) / 100.0;
                         double s = (rand() % 100) / 100.0;
 
@@ -331,6 +342,7 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
                 Ray3D ray(viewToWorld * origin, dir);
                 ray.num_bounces = 1; // A ray bounces once off of the first object it hits,
 
+
                 col = col + shadeRay(ray);
             }
 
@@ -361,7 +373,7 @@ int main(int argc, char* argv[])
 
     // Depth of 1 sets rays to emit themselves once and then
     // exit the recursive function.
-    raytracer.setRecursiveDepth(1);
+    raytracer.setRecursiveDepth(0);
 
     while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::")) != -1) {
         switch (c) {
@@ -408,73 +420,48 @@ int main(int argc, char* argv[])
     double fov = 60;
 
     // Defines a point light source.
-    //raytracer.addLightSource( new PointLight(Point3D(0, 0, 5), 
-      //          Colour(0.9, 0.9, 0.9) ) );
-    raytracer.addLightSource( new PointLight(Point3D(0, 0, 5), 
+    raytracer.addLightSource( new PointLight(Point3D(0, 7, 5), 
                 Colour(0.9, 0.9, 0.9) ) );
 
-    Material gold( Colour(0.3, 0.3, 0.3), Colour(0, 0, 0), 
-            Colour(0, 0, 0), 
-            0);
-    Material jade( Colour(0.1, 0.2, 0.1), Colour(0, 0, 0), 
-            Colour(0, 0, 0), 
-            0);
+    // Defines a material for shading.
+    Material gold( Colour(0.24725, 0.1995, 0.0745), Colour(0.75164, 0.60648, 0.22648), 
+            Colour(0.628281, 0.555802, 0.366065), 
+            51.2 );
+    Material jade( Colour(0.135, 0.2225, 0.1575), Colour(0.54, 0.89, 0.63), 
+            Colour(0.316228, 0.316228, 0.316228), 
+            12.8 );
+    Material green_plastic( Colour(0, 0, 0), Colour(0.1, 0.35, 0.1), 
+            Colour(0.45, 0.55, 0.45), 
+            32);
 
     // Add a unit square into the scene with material mat.
     SceneDagNode* sphere = raytracer.addObject( new UnitSphere(), &gold );
     SceneDagNode* plane = raytracer.addObject( new UnitSquare(), &jade );
+    SceneDagNode *table = raytracer.addObject(new UnitSquare(), &green_plastic);
     
     // Apply some transformations to the unit square.
     double factor1[3] = { 1.0, 2.0, 1.0 };
-    double factor2[3] = { 6.0, 6.0, 6.0 };
+    double factor2[3] = { 2.0, 2.0, 2.0 };
+    double table_factor[3] = { 24.0, 24.0, 60.0 };
     raytracer.translate(sphere, Vector3D(0, 0, -5));    
     raytracer.rotate(sphere, 'x', -45); 
     raytracer.rotate(sphere, 'z', 45); 
     raytracer.scale(sphere, Point3D(0, 0, 0), factor1);
 
+    raytracer.translate(table, Vector3D(0, -3, 0));
+    raytracer.rotate(table, 'x', 270);
+    raytracer.scale(table, Point3D(0, 0, 0), table_factor);
+
     raytracer.translate(plane, Vector3D(0, 0, -7)); 
     raytracer.rotate(plane, 'z', 45);
     raytracer.scale(plane, Point3D(0, 0, 0), factor2);
-
-
-    // Render the scene, feel free to make the image smaller for
-    // testing purposes.    
-    raytracer.render(width, height, eye, view, up, fov, (char *) "sig1.bmp");
     
     // Render it from a different point of view.
     Point3D eye2(4, 2, 1);
     Vector3D view2(-4, -2, -6);
-    raytracer.render(width, height, eye2, view2, up, fov, (char *) "sig2.bmp");
 
-    Material gold2( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 
-            Colour(0, 0, 0), 
-            0);
-    Material jade2( Colour(0.0, 0.0, 0.0), Colour(0.54, 0.89, 0.63), 
-            Colour(0, 0, 0), 
-            0);
-
-    sphere->mat = &gold2;
-    plane->mat = &jade2;
-
-
-    // Render the scene, feel free to make the image smaller for
-    // testing purposes.    
-    raytracer.render(width, height, eye, view, up, fov, (char *) "diffuse1.bmp");
-    raytracer.render(width, height, eye2, view2, up, fov, (char *) "diffuse2.bmp");
-
-    // Defines a material for shading.
-    Material gold3( Colour(0.3, 0.3, 0.3), Colour(0.75164, 0.60648, 0.22648), 
-            Colour(0.628281, 0.555802, 0.366065), 
-            51.2 );
-    Material jade3( Colour(0.0, 0.0, 0.0), Colour(0.54, 0.89, 0.63), 
-            Colour(0.316228, 0.316228, 0.316228), 
-            12.8 );
-
-    sphere->mat = &gold3;
-    plane->mat = &jade3;
-
-    raytracer.render(width, height, eye, view, up, fov, (char *) "phong1.bmp");
-    raytracer.render(width, height, eye2, view2, up, fov, (char *) "phong2.bmp");
+    raytracer.render(width, height, eye, view, up, fov, (char *) "img1.bmp");
+    raytracer.render(width, height, eye2, view2, up, fov, (char *) "img2.bmp");
     
     return 0;
 }

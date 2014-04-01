@@ -28,6 +28,8 @@ bool UnitSquare::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
 
     Vector3D dir = worldToModel * ray.dir;
     Point3D origin = worldToModel * ray.origin;
+    // Define the normal as (0, 0, 1)
+    Vector3D normal(0, 0, 1);
 
     // Solve: (x', y', z') = origin + t(dir), -0.5 <= x, y <= 0.5, z = 0
     // => x' - origin.x = tx; y' - origin.y = ty; z' -origin.z = tz
@@ -36,6 +38,7 @@ bool UnitSquare::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
         // ray is in the xy plane, so even if it intersects, the square won't be visible.
         return false;
     }
+
     // Solve z' = origin.z + t * z
     double x, y, t;
     t = (0 - origin[2]) / dir[2];
@@ -51,12 +54,13 @@ bool UnitSquare::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
     y = t * dir[1] + origin[1];
 
     if (x >= -0.5 && x <= 0.5 && y >= -0.5 && y <= 0.5) {
-        // Define the normal as (0, 0, 1)
-        Vector3D normal(0, 0, 1);
+        
         // Convert it to world space.
         normal = transNorm(worldToModel, normal);
         normal.normalize();
         ray.intersection.normal = normal;
+
+
 
         // Calculate the intersection point in world coordinates.
         Point3D intersection(x, y, 0);
