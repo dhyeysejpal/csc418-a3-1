@@ -186,43 +186,94 @@ bool RightCylinder::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
     Point3D origin = worldToModel * (ray.origin - ray.time * get_velocity());
     // Define the normal as (0, 0, 1)
     Vector3D normal;
+    Point3D intersection;
+    bool res = false;
 
-    // Solve: (x', y', z') = origin + t(dir), -0.5 <= x, y <= 0.5, z = 0
-
-    // Solve z' = origin.z + t * z
-    double x, y, t;
+    // Solve for collisions with the cylinder defined by height |z'| <= 1, radius x**2 + y**2 = 1
+    double x, y, z, t;
     double top_t, bottom_t, side_t;
 
     if (dir[2] != 0) {
-        top_t = (1 - origin[2]) / dir[2];
+        z = 1.0;
+        top_t = (z - origin[2]) / dir[2];
 
         // Calculate point of intersection.
         x = top_t * dir[0] + origin[0]; // x and y are in model coordinates.
         y = top_t * dir[1] + origin[1];
 
-        if (pow(x, 2) + pow(y, 2) <= 1) {
-            
-            normal = transNorm(worldToModel, Vector3D(0, 0, 1));
-            normal.normalize();
-            ray.intersection.normal = normal;
-
+        if (top_t > 0 && pow(x, 2) + pow(y, 2) <= 1) {
+            res = true;
             t = top_t;
-
-            // Calculate the intersection point in world coordinates.
-            Point3D intersection(x, y, 0);
-            intersection = modelToWorld * intersection;
-
-            ray.intersection.point = intersection;
-
-            ray.intersection.t_value = t;
-
+            normal = Vector3D(0, 0, 1);
+            intersection = Point3D(x, y, z);
             ray.intersection.none = false;
+        }
 
-            return true;
+        z = -1.0;
+        bottom_t = (z - origin[2]) / dir[2];
+
+        // Calculate point of intersection.
+        x = bottom_t * dir[0] + origin[0]; // x and y are in model coordinates.
+        y = bottom_t * dir[1] + origin[1];
+
+        if (bottom_t > 0 && (!res || bottom_t < t) && pow(x, 2) + pow(y, 2) <= 1) {
+            res = true;
+            t = bottom_t;
+            normal = Vector3D(0, 1, 0);
+            intersection = Point3D(x, y, z);
+            ray.intersection.none = false;
         }
     }
+
+    // Detect collision with cylinder side.
+    // Solve x**2 + y**2 - r**2 = 0
+    // = (origin[0] + t*dir[0])**2 + (origin[1] + t*dir[1])**2 - 1
+    // = t**2(dir[0]**2 + dir[1]**2) + 2t(origin[0]dir[0] + origin[1]dir[1]) + origin[0]**2 + origin[1]**2 - 1
+    double a = pow(dir[0], 2) + pow(dir[1], 2);
+    double b = 2 * (dir[0] * origin[0] + dir[1] * origin[1]);
+    double c = pow(origin[0], 2) + pow(origin[1], 2) - 1;
+
+    double discriminant = pow(b, 2) -  4 * a * c;
+
+    if (discriminant >= 0) {
+        // Intersection point exists. Only look at the closest one, because it's in front and if it's negative,
+        // we're inside the cylinder anyway
+        side_t = (-b - sqrt(discriminant)) / (2 * a);
+
+        if (side_t > 0 && (!res || side_t )) {
+            x = side_t * dir[0] + origin[0]; // x and y are in model coordinates.
+            y = side_t * dir[1] + origin[1];
+            z = side_t * dir[2] + origin[2];
+
+            if (std::abs(z) <= 1) {
+                res = true;
+                t = side_t;
+                normal = Vector3D(x, y, 0);
+                intersection = Point3D(x, y, z);
+                ray.intersection.none = false;
+            }
+        }
+    }
+
+    if (res) {
+        normal = transNorm(worldToModel, normal);
+        normal.normalize();
+
+        ray.intersection.normal = normal;
+
+        // Calculate the intersection point in world coordinates.
+        Point3D intersection(x, y, 0);
+        intersection = modelToWorld * intersection;
+
+        ray.intersection.point = intersection;
+
+        ray.intersection.t_value = t;
+
+        
+    }
+    
     
 
     // Ray doesn't intersect within the unit square's bounds.
-    return false;
+    return res;
 }
