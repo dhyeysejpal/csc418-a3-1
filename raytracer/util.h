@@ -187,6 +187,8 @@ struct Ray3D {
     int num_bounces;
     // True if the ray is currently in shadow.
     bool in_shadow;
+    // The "time" at which the ray was fired off. Used for motion blur.
+    double time;
 };
 #endif
 

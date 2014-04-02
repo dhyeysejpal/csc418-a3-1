@@ -248,51 +248,73 @@ void Raytracer::flushPixelBuffer( char *file_name ) {
 }
 
 Colour Raytracer::shadeRay( Ray3D& ray ) {
-    Colour col(0.0, 0.0, 0.0); 
-    traverseScene(_root, ray); 
-    
-    // Don't bother shading if the ray didn't hit 
-    // anything.
-    if (!ray.intersection.none) {
-        computeShading(ray);
-        col = ray.col;
-        // For more perfectly reflective surfaces, reflections are less glossy.
-        double a = 1 - ray.intersection.mat->reflectivity;
+    Colour avg_col(0, 0, 0); // Average colour sample, accounting for motion blur.
+    if (getBlurSamples() > 0) {
+        double t_interval = 1.0 / getBlurSamples();
+        for (int i = 0; i < getBlurSamples(); i++) {
+            // Take multiple samples from each ray to account for scene objects in motion.
+            ray.col = Colour(0, 0, 0); // Need to start fresh every time.
+            ray.intersection.none = true;
+            Colour col(0.0, 0.0, 0.0);
 
-        if (ray.num_bounces < getRecursiveDepth()) {
-            // Fire off more rays originating at the intersection point.
-            Vector3D n(ray.intersection.normal);
-            Vector3D incident = ray.dir - 2 * (n.dot(ray.dir) * n);
-            incident.normalize();
-            // Distribute rays across a patch perpendicular to the incident ray.
-            Vector3D u = incident.unit_normal();
-            Vector3D v = incident.cross(u);
-            
-            Colour reflection_col(0, 0, 0);
-            int i;
-            for (i = 0; i < _reflection_samples; i++) {
-                // If glossy reflections are enabled, generate orthonormal coordinates
-                // and cast off randomly distributed rays from the plane.
-                Ray3D reflection;
-                if (_glossy_reflections) {
-                    double s = a * ((rand() % 100) / 100.0 - 0.5);
-                    double t = a * ((rand() % 100) / 100.0 - 0.5);
-                    Vector3D r = incident + s * u + t * v;
-                    r.normalize();
-                    reflection = Ray3D(ray.intersection.point + 0.01 * r, r);
-                } else {
-                    reflection = Ray3D(ray.intersection.point + 0.01 * incident, incident);
+            // Linearly interpolate time.
+            double r = (rand() % 100) / 100.0;
+            double time = (t_interval * (i + r));
+
+            ray.time = time;
+
+            traverseScene(_root, ray); 
+        
+            // Don't bother shading if the ray didn't hit 
+            // anything.
+            if (!ray.intersection.none) {
+                computeShading(ray);
+                col = ray.col;
+                // For more perfectly reflective surfaces, reflections are less glossy.
+                // Define a region around which reflections are randomly cast.
+                double a = 1 - ray.intersection.mat->reflectivity;
+
+                if (ray.intersection.mat->reflectivity > 0 && ray.num_bounces < getRecursiveDepth()) {
+                    // Fire off more rays originating at the intersection point.
+                    Vector3D n(ray.intersection.normal);
+                    Vector3D incident = ray.dir - 2 * (n.dot(ray.dir) * n);
+                    incident.normalize();
+                    // Distribute rays across a patch perpendicular to the incident ray.
+                    Vector3D u = incident.unit_normal();
+                    Vector3D v = incident.cross(u);
+                    
+                    Colour reflection_col(0, 0, 0);
+                    int i;
+                    for (i = 0; i < _reflection_samples; i++) {
+                        // If glossy reflections are enabled, generate orthonormal coordinates
+                        // and cast off randomly distributed rays from the plane.
+                        Ray3D reflection;
+                        if (_glossy_reflections) {
+                            double s = a * ((rand() % 100) / 100.0 - 0.5);
+                            double t = a * ((rand() % 100) / 100.0 - 0.5);
+                            Vector3D r = incident + s * u + t * v;
+                            r.normalize();
+                            reflection = Ray3D(ray.intersection.point + 0.01 * r, r);
+                        } else {
+                            reflection = Ray3D(ray.intersection.point + 0.01 * incident, incident);
+                        }
+                        
+                        reflection.num_bounces = ray.num_bounces + 1;
+                        reflection_col = reflection_col + ray.intersection.mat->reflectivity * ray.intersection.mat->specular * shadeRay(reflection);
+                    }
+
+                    reflection_col = (1.0 / i) * reflection_col;
+                    col = col + reflection_col;
+                    col.clamp();
                 }
-                
-                reflection.num_bounces = ray.num_bounces + 1;
-                reflection_col = reflection_col + ray.intersection.mat->reflectivity * ray.intersection.mat->specular * shadeRay(reflection);
             }
 
-            reflection_col = (1.0 / i) * reflection_col;
-            col = col + reflection_col;
-            col.clamp();
+            avg_col = avg_col + col;
         }
+        // Take the average colour.
+        avg_col = (1.0 / getBlurSamples()) * avg_col;
     }
+    
 
     //TODO:
     // You'll want to call shadeRay recursively (with a different ray, 
@@ -303,12 +325,12 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
     // d ~= (-c2/c1 * r) + (c2/c1 * cos(th1) - cos(th2)) * N
     // sin(th1) / sin(th2) = c1 / c2
 
-    // Note if c2 > c1, ray bends away from the normal, so you might get non-acute angle.
+    // Note if c2 > c1, ray bends away from the normal, so you might get a non-acute angle.
     // => total internal reflection, ray doesn't go through to the other side of the 
     // material. So check that incoming angle isn't such that sin*(th1) >= c1/c2
 
 
-    return col; 
+    return avg_col; 
 }   
 
 void Raytracer::render( int width, int height, Point3D eye, Vector3D view, 
@@ -405,8 +427,9 @@ int main(int argc, char* argv[])
     raytracer.disableGlossyReflections();
     raytracer.setReflectionSamples(1);
     raytracer.disableShadows();
+    raytracer.setBlurSamples(1); // ALways sample an image at at least one point
 
-    while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::g:")) != -1) {
+    while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::g:b:")) != -1) {
         switch (c) {
             case 'M':
                 // Auto-medium settings.
@@ -426,12 +449,6 @@ int main(int argc, char* argv[])
                 raytracer.enableShadows();
                 raytracer.setSS(atoi(optarg));
                 break;
-            case 'w':
-                width = atoi(optarg);
-                break;
-            case 'h':
-                height = atoi(optarg);
-                break;
             case 'r':
                 // Enable reflection and refraction.
                 if (optarg != NULL) {
@@ -446,6 +463,15 @@ int main(int argc, char* argv[])
                 raytracer.enableGlossyReflections();
                 raytracer.setReflectionSamples(atoi(optarg));
 
+                break;
+            case 'b':
+                raytracer.setBlurSamples(atoi(optarg));
+                break;
+            case 'w':
+                width = atoi(optarg);
+                break;
+            case 'h':
+                height = atoi(optarg);
                 break;
             default:
                 break;
@@ -517,6 +543,7 @@ int main(int argc, char* argv[])
     SceneDagNode *ball6 = raytracer.addObject(new UnitSphere(), &pearl);
         raytracer.translate(ball6, Vector3D(-2, -2, 14));
         raytracer.scale(ball6, Point3D(0, 0, 0), pool_ball_size);
+        ball6->obj->set_velocity(Vector3D(0, 2.0, 0));
     SceneDagNode *ball7 = raytracer.addObject(new UnitSphere(), &pearl);
         raytracer.translate(ball7, Vector3D(3, -2, 18));
         raytracer.scale(ball7, Point3D(0, 0, 0), pool_ball_size);

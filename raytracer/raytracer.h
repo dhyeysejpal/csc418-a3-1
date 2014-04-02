@@ -120,6 +120,11 @@ public:
 
     void disableGlossyReflections() { _glossy_reflections = false; };
 
+    // Get the number of samples to take for motion blur.
+    int getBlurSamples() { return _blur_samples; }
+
+    void setBlurSamples(int val) { _blur_samples = val; }
+
     // Enable shadows.
     void enableShadows() { _shadows_enabled = true; }
 
@@ -174,6 +179,7 @@ private:
     int _shadow_samples;
     // The maximum number of times that a ray is allowed to bounce.
     int _max_recursive_depth;
+    int _blur_samples;
 
     // Pixel buffer.
     unsigned char* _rbuffer;
