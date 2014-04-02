@@ -182,106 +182,55 @@ bool DysonSphere::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
 
 bool RightCylinder::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
         const Matrix4x4& modelToWorld ) {
-    // A cylinder defined as having height |z| <= 1 and radius x**2 + y**2 = 1
-    // Cylinder intersection has 3 components: intersection with the two unit
-    // circles at y = +- 0.5, and the sides of the cylinder.
+    Vector3D dir = worldToModel * ray.dir;
+    Point3D origin = worldToModel * (ray.origin - ray.time * get_velocity());
+    // Define the normal as (0, 0, 1)
+    Vector3D normal(0, 0, 1);
 
-    // , radius 0.5.
-    double x, y, z, t;
+    // Solve: (x', y', z') = origin + t(dir), -0.5 <= x, y <= 0.5, z = 0
+    // => x' - origin.x = tx; y' - origin.y = ty; z' -origin.z = tz
 
-    double top_t, bottom_t, side_t;
-    double res = false;
+    if (dir[2] == 0) {
+        // ray is in the xy plane, so even if it intersects, the square won't be visible.
+        return false;
+    }
 
-    Point3D intersection_point;
-    Vector3D normal;
+    // Solve z' = origin.z + t * z
+    double x, y, t;
+    t = (0 - origin[2]) / dir[2];
 
-    Vector3D dir = worldToModel * ray.dir;    
-    Point3D origin = worldToModel * (ray.origin -  ray.time * get_velocity());
+    if (t <= 0 || (!ray.intersection.none && t > ray.intersection.t_value)) {
+        // Looking away from the plane or intersection point is behind an
+        // earlier intersection, so don't update the intersection.
+        return false;
+    }
 
-    // Test for collisions with circles.
-    if (dir[2] != 0) {
-        // Test collision with top circle.
-        // If the z component of ray was 0, the top and bottom circles would not be visible anyway.
-        z = 1.0;
-        // Solve for (x, 0.5, z) = origin + t * dir
-        // => 1.0 = origin.z + t * dir.z => t = (1.0 - origin.z) / dir.z
-        top_t = (z - origin[2]) / dir[2];
-        x = origin[0] + t * dir[0];
-        y = origin[1] + t * dir[1];
-        printf("intersection point is %f, %f, %f at time  %f\n", x, y, z, top_t);
+    // Calculate point of intersection.
+    x = t * dir[0] + origin[0]; // x and y are in model coordinates.
+    y = t * dir[1] + origin[1];
 
-        if (top_t > 0 && pow(x, 2) + pow(y, 2) <= 1.0) {
-            // On the circle of radius 1
-            intersection_point = Point3D(x, y, z);
-            normal = Vector3D(0, 0, 1);
-            res = true;
-            t = top_t;
-        }
-
-        ray.intersection.none = false;
+    if (x >= -0.5 && x <= 0.5 && y >= -0.5 && y <= 0.5) {
+        
+        // Convert it to world space.
         normal = transNorm(worldToModel, normal);
         normal.normalize();
         ray.intersection.normal = normal;
-        ray.intersection.point = modelToWorld * intersection_point;
+
+
+
+        // Calculate the intersection point in world coordinates.
+        Point3D intersection(x, y, 0);
+        intersection = modelToWorld * intersection;
+
+        ray.intersection.point = intersection;
+
         ray.intersection.t_value = t;
+
+        ray.intersection.none = false;
 
         return true;
-
-        // Test collision with bottom circle.
-        z = -1.0;
-        bottom_t = (z - origin[2]) / dir[2];
-        if (bottom_t > 0 && bottom_t < t) {
-            x = origin[0] + t * dir[0];
-            y = origin[1] + t * dir[1];
-
-            if (pow(x, 2) + pow(y, 2) <= 1.0) {
-                // On the circle of radius 1
-                intersection_point = Point3D(x, y, z);
-                normal = Vector3D(0, 0, -1);
-                res = true;
-                t = top_t;
-            }
-        }
     }
 
+    // Ray doesn't intersect within the unit square's bounds.
     return false;
-
-    // Also test collision for when x**2 + z**2 - r**2 = 0
-    // x**2 + y ** 2 - r ** 2 = (origin.x - t * dir.x) ** 2 + (origin.y - t * dir.y) ** 2 - 1
-    // = origin.x ** 2  + origin.y ** 2 - 2t * dir.x * origin.x - 2t * dir.y * origin.y + (t * dir.x) ** 2 + (t * dir.y) ** 2 - 1
-    // 0 = t**2(dir.x + dir.y) -2t(dir.x * origin.x + dir.y * origin.y) + origin.x ** 2 + origin.y ** 2 - 1 
-    // Solve for t using quadratic formula:
-    double a = pow(dir[0], 2) + pow(dir[1], 2);
-    double b = -2 * (dir[0] * origin[0] + dir[1] * origin[1]);
-    double c = pow(origin[0], 2) + pow(origin[1], 2) - 1;
-
-    double discriminant = pow(b, 2) - 4 * a * c;
-    if (discriminant >= 0) {
-        // At least one collision point. Only take the first one. If that's negative, we are
-        // inside or behind the cylinder, so it wouldn't be visible anyway.
-        side_t = (-b - sqrt(discriminant)) / (2 * a);
-
-        x = origin[0] + t * dir[0];
-        y = origin[1] + t * dir[1];
-        z = origin[2] + t * dir[2];
-
-        if (side_t > 0 && side_t < t) {
-            intersection_point = Point3D(x, y, z);
-            normal = Vector3D(x, y, 0);
-            res = true;
-            t = top_t;
-        }
-    }
-
-    if (res) {
-        printf("should be rendering cylinder.\n");
-        ray.intersection.none = false;
-        normal = transNorm(worldToModel, normal);
-        normal.normalize();
-        ray.intersection.normal = normal;
-        ray.intersection.point = modelToWorld * intersection_point;
-        ray.intersection.t_value = t;
-    }
-
-    return res;
 }
