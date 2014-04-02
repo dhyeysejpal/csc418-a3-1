@@ -111,6 +111,15 @@ public:
     // set the number of rays to sample for soft shadows.
     void setSS(int num_samples) { _shadow_samples = num_samples; }
 
+    // Set the number of rays cast out randomly to create glossy samples.
+    int getReflectionSamples() { return _reflection_samples; }
+
+    void setReflectionSamples(int val) { _reflection_samples = val; }
+
+    void enableGlossyReflections() { _glossy_reflections = true; }
+
+    void disableGlossyReflections() { _glossy_reflections = false; };
+
     // Enable shadows.
     void enableShadows() { _shadows_enabled = true; }
 
@@ -159,6 +168,8 @@ private:
     // Number of anti-aliasing samples per pixel.
     int _aa_samples;
     bool _shadows_enabled;
+    int _reflection_samples;
+    bool _glossy_reflections;
      // Number of samples to take for soft shadows.
     int _shadow_samples;
     // The maximum number of times that a ray is allowed to bounce.

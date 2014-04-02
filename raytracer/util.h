@@ -47,7 +47,9 @@ public:
     double length() const; 
     double normalize();
     double dot(const Vector3D& other) const; 
-    Vector3D cross(const Vector3D& other) const; 
+    Vector3D cross(const Vector3D& other) const;
+    // Generate a unit vector perpendicular to this vector.
+    Vector3D unit_normal();
 
 private:
     double m_data[3];
@@ -62,8 +64,8 @@ Vector3D operator -(const Vector3D& u, const Vector3D& v);
 Vector3D operator -(const Vector3D& u); 
 Point3D operator -(const Point3D& u, const Vector3D& v); 
 Vector3D cross(const Vector3D& u, const Vector3D& v); 
-std::ostream& operator <<(std::ostream& o, const Point3D& p); 
-std::ostream& operator <<(std::ostream& o, const Vector3D& v); 
+std::ostream& operator <<(std::ostream& o, const Point3D& p);
+std::ostream& operator <<(std::ostream& o, const Vector3D& v);
 
 class Vector4D {
 public:
@@ -131,7 +133,10 @@ std::ostream& operator <<(std::ostream& o, const Colour& c);
 struct Material {
     Material( Colour ambient, Colour diffuse, Colour specular, double exp ) :
         ambient(ambient), diffuse(diffuse), specular(specular), 
-        specular_exp(exp) {}
+        specular_exp(exp), reflectivity(exp / 128) {}
+    Material( Colour ambient, Colour diffuse, Colour specular, double exp, double reflectivity) :
+        ambient(ambient), diffuse(diffuse), specular(specular), 
+        specular_exp(exp), reflectivity(reflectivity) {}
     
     // Ambient components for Phong shading.
     Colour ambient; 
@@ -141,6 +146,8 @@ struct Material {
     Colour specular;
     // Specular expoent.
     double specular_exp;
+    // Percentage of light that is reflected by the material. 1.0 for a mirror.
+    double reflectivity;
 };
 
 struct Intersection {

@@ -187,6 +187,7 @@ void Raytracer::computeShading( Ray3D& ray ) {
     for (LightListNode *curLight = _lightSource; curLight != NULL; curLight = curLight->next) {
         if (curLight == NULL) break;
         // Each lightSource provides its own shading function.
+        Colour previous_colour(ray.col);
         int i;
         // TODO: Implement shadows here if needed.
         for (i = 0; i < _shadow_samples; i++) {
@@ -207,7 +208,7 @@ void Raytracer::computeShading( Ray3D& ray ) {
             curLight->light->shade(ray);
 
             if (!_shadows_enabled || !curLight->light->supports_soft_shadows()) {
-                // For efficiency, only perform multiple shadow 
+                // For efficiency, only perform multiple samples for light sources that support it.
                 break;
             }
         }
@@ -216,6 +217,11 @@ void Raytracer::computeShading( Ray3D& ray ) {
             // Take the average of the number of samples taken.
             ray.col = (1.0 / i) * ray.col; 
         }
+        // TODO: fix shadow balance so that having more samples taken from an AreaLight doesn't
+        // cause darker shadows than when fewer samples are taken, under multiple light sources.
+        // Colour is simply additive between lights.
+        ray.col = ray.col + previous_colour;
+
         ray.col.clamp();
     }
 }
@@ -248,23 +254,43 @@ Colour Raytracer::shadeRay( Ray3D& ray ) {
     // Don't bother shading if the ray didn't hit 
     // anything.
     if (!ray.intersection.none) {
-        computeShading(ray); 
+        computeShading(ray);
         col = ray.col;
+        // For more perfectly reflective surfaces, reflections are less glossy.
+        double a = 1 - ray.intersection.mat->reflectivity;
 
         if (ray.num_bounces < getRecursiveDepth()) {
             // Fire off more rays originating at the intersection point.
             Vector3D n(ray.intersection.normal);
             Vector3D incident = ray.dir - 2 * (n.dot(ray.dir) * n);
             incident.normalize();
-
-            Ray3D reflection(ray.intersection.point + 0.01 * incident, incident);
-            reflection.num_bounces = ray.num_bounces + 1;
-
-            shadeRay(reflection);
-            if (!reflection.intersection.none) {
-                col = col + 0.25 * ray.intersection.mat->specular * reflection.col;
-                col.clamp();
+            // Distribute rays across a patch perpendicular to the incident ray.
+            Vector3D u = incident.unit_normal();
+            Vector3D v = incident.cross(u);
+            
+            Colour reflection_col(0, 0, 0);
+            int i;
+            for (i = 0; i < _reflection_samples; i++) {
+                // If glossy reflections are enabled, generate orthonormal coordinates
+                // and cast off randomly distributed rays from the plane.
+                Ray3D reflection;
+                if (_glossy_reflections) {
+                    double s = a * ((rand() % 100) / 100.0 - 0.5);
+                    double t = a * ((rand() % 100) / 100.0 - 0.5);
+                    Vector3D r = incident + s * u + t * v;
+                    r.normalize();
+                    reflection = Ray3D(ray.intersection.point + 0.01 * r, r);
+                } else {
+                    reflection = Ray3D(ray.intersection.point + 0.01 * incident, incident);
+                }
+                
+                reflection.num_bounces = ray.num_bounces + 1;
+                reflection_col = reflection_col + ray.intersection.mat->reflectivity * ray.intersection.mat->specular * shadeRay(reflection);
             }
+
+            reflection_col = (1.0 / i) * reflection_col;
+            col = col + reflection_col;
+            col.clamp();
         }
     }
 
@@ -303,10 +329,6 @@ void Raytracer::render( int width, int height, Point3D eye, Vector3D view,
             Point3D origin(0, 0, 0);
             Point3D imagePlane;
             Colour col;
-
-            if (i == 200 && j == 183) {
-                printf("Examine here.\n");
-            }
 
             if (getAA()) {
                 // If an anti-aliasing mode has been specified, perform stratified sampling.
@@ -380,8 +402,11 @@ int main(int argc, char* argv[])
     raytracer.setRecursiveDepth(0);
     // Raytracer uses at most one shadow sample unless overwritten.
     raytracer.setSS(1);
+    raytracer.disableGlossyReflections();
+    raytracer.setReflectionSamples(1);
+    raytracer.disableShadows();
 
-    while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::")) != -1) {
+    while ((c = getopt(argc, argv, ":a:sS:Mw:h:r::g:")) != -1) {
         switch (c) {
             case 'M':
                 // Auto-medium settings.
@@ -409,12 +434,18 @@ int main(int argc, char* argv[])
                 break;
             case 'r':
                 // Enable reflection and refraction.
-                if (optarg) {
+                if (optarg != NULL) {
                     raytracer.setRecursiveDepth(atoi(optarg));
                 } else {
                     // Allow rays to bounce twice by default.
                     raytracer.setRecursiveDepth(3);
                 }
+                break;
+            case 'g':
+                // Enable glossy reflections.
+                raytracer.enableGlossyReflections();
+                raytracer.setReflectionSamples(atoi(optarg));
+
                 break;
             default:
                 break;
@@ -428,8 +459,9 @@ int main(int argc, char* argv[])
     double fov = 60;
 
     // Defines a point light source.
-    raytracer.addLightSource( new AreaLight(Point3D(0, 7, 5),
+    raytracer.addLightSource( new AreaLight(Point3D(0, 10, 5),
         Vector3D(1, 0, 0), Vector3D(0, 0, 1), Colour(0.9, 0.9, 0.9) ) );
+    //raytracer.addLightSource(new PointLight(Point3D(0, 1000, 0), Colour(0.2, 0.2, 0.05)));
 
     // Defines a material for shading.
     Material gold( Colour(0.24725, 0.1995, 0.0745), Colour(0.75164, 0.60648, 0.22648), 
@@ -440,7 +472,17 @@ int main(int argc, char* argv[])
             12.8 );
     Material green_plastic( Colour(0, 0, 0), Colour(0.1, 0.35, 0.1), 
             Colour(0.45, 0.55, 0.45), 
-            32);
+            32, 0.01);
+    Material pearl(Colour(0.25, 0.20725, 0.20725), Colour(1.0, 0.829, 0.829),
+        Colour(0.296648, 0.296648, 0.296648), 11.264);
+     Material mirror(Colour(0, 0, 0), Colour(0, 0, 0),
+        Colour(1.0, 1.0, 1.0), 11.264, 1.0);
+    Material turquoise(Colour(0.1, 0.18725, 0.1745), Colour(0.396, 0.74151, 0.69102),
+        Colour(0.297254, 0.30829, 0.306678), 12.8);
+     Material skyblue(Colour(0, 0.74609375, 1), Colour(0, 0, 0), Colour(0, 0, 0), 12.8, 0);
+
+    Material chrome(Colour(0.25, 0.25, 0.25), Colour(0.4, 0.4, 0.4), Colour(0.774597, 0.774597, 0.774597),
+        76.8, 0.9);
 
     // Add a unit square into the scene with material mat.
     SceneDagNode* sphere = raytracer.addObject( new UnitSphere(), &gold );
@@ -450,7 +492,41 @@ int main(int argc, char* argv[])
     // Apply some transformations to the unit square.
     double factor1[3] = { 1.0, 2.0, 1.0 };
     double factor2[3] = { 4.0, 4.0, 4.0 };
-    double table_factor[3] = { 24.0, 24.0, 60.0 };
+    double table_factor[3] = { 24.0, 72.0, 1.0 };
+    double pool_ball_size[3] = { 0.8, 0.8, 0.8 };
+    double sky_size[3] = { 1500, 1500, 1500 };
+
+    SceneDagNode *sky = raytracer.addObject(new DysonSphere(), &turquoise);
+        raytracer.scale(sky, Point3D(0, 0, 0), sky_size);
+
+    SceneDagNode *ball1 = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(ball1, Vector3D(0, -2, 6));
+        raytracer.scale(ball1, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball2 = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(ball2, Vector3D(1, -2, 10));
+        raytracer.scale(ball2, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball3 = raytracer.addObject(new UnitSphere(), &mirror);
+        raytracer.translate(ball3, Vector3D(-1, -2, 10));
+        raytracer.scale(ball3, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball4 = raytracer.addObject(new UnitSphere(), &chrome);
+        raytracer.translate(ball4, Vector3D(2, -2, 14));
+        raytracer.scale(ball4, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball5 = raytracer.addObject(new UnitSphere(), &mirror);
+        raytracer.translate(ball5, Vector3D(0, -2, 14));
+        raytracer.scale(ball5, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball6 = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(ball6, Vector3D(-2, -2, 14));
+        raytracer.scale(ball6, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball7 = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(ball7, Vector3D(3, -2, 18));
+        raytracer.scale(ball7, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *ball8 = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(ball8, Vector3D(-3, -2, 18));
+        raytracer.scale(ball8, Point3D(0, 0, 0), pool_ball_size);
+    SceneDagNode *cue = raytracer.addObject(new UnitSphere(), &pearl);
+        raytracer.translate(cue, Vector3D(0, -2, 32));
+        raytracer.scale(cue, Point3D(0, 0, 0), pool_ball_size);
+
     raytracer.translate(sphere, Vector3D(0, 0, -5));    
     raytracer.rotate(sphere, 'x', -45); 
     raytracer.rotate(sphere, 'z', 45); 
@@ -465,11 +541,13 @@ int main(int argc, char* argv[])
     raytracer.scale(plane, Point3D(0, 0, 0), factor2);
     
     // Render it from a different point of view.
-    Point3D eye2(40, 20, 10);
+    Point3D eye2(20, 10, 28);
+    Point3D eye3(2, 0, 18);
     Vector3D view2(-4, -2, -6);
 
     //raytracer.render(width, height, eye, view, up, fov, (char *) "img1.bmp");
-    raytracer.render(width, height, eye2, view2, up, fov, (char *) "img2.bmp");
+    //raytracer.render(width, height, eye2, view2, up, fov, (char *) "img2.bmp");
+    raytracer.render(width, height, eye3, view2, up, fov, (char *) "img2.bmp");
     
     return 0;
 }

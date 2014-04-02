@@ -33,6 +33,9 @@ void PointLight::shade(Ray3D& ray) {
     // Ray colour shouldn't be darker than its brightest ambient component.
     if (ray.col[0] < ambient[0] && ray.col[1] < ambient[1] && ray.col[2] < ambient[2]) {
         ray.col = ambient;
+    } else if (ray.in_shadow) {
+        // Raytracer's shader will add back in the ambient term.
+        ray.col = Colour(0, 0, 0);
     }
 
     if (ray.in_shadow) {

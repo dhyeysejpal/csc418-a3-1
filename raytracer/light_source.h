@@ -31,7 +31,7 @@ public:
     : _pos(pos), _col_ambient(ambient), _col_diffuse(diffuse), 
     _col_specular(specular) {}
     void shade( Ray3D& ray );
-    Point3D get_position() const { return _pos; }
+    Point3D get_position() { return _pos; }
     
 private:
     Point3D _pos;

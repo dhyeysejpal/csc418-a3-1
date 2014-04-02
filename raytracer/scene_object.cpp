@@ -145,3 +145,64 @@ bool UnitSphere::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
     // No intersection with the sphere.
     return false;
 }
+
+bool DysonSphere::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
+        const Matrix4x4& modelToWorld ) {
+    // TODO: implement intersection code for UnitSphere, which is centred 
+    // on the origin.  
+    //
+    // Your goal here is to fill ray.intersection with correct values
+    // should an intersection occur.  This includes intersection.point, 
+    // intersection.normal, intersection.none, intersection.t_value.   
+    //
+    // HINT: Remember to first transform the ray into object space  
+    // to simplify the intersection test.
+
+    Vector3D dir = worldToModel * ray.dir;
+    Point3D origin = worldToModel * ray.origin;
+
+    if (origin[0] * origin[0] + origin[1] * origin[1] + origin[2] * origin[2] >= 1) {
+        // Outside of the sphere, so won't be able to see anything.
+        return false;
+    }
+
+    double x, y, z, t;
+
+    Vector3D radial = origin - Point3D(0, 0, 0);
+    // Solve for t = 1/dir.dot(dir) * (-dir.dot(radial))
+        // +- sqrt(dir.dot(radial)**2 - (dir.dot(dir) * (radial.dot(radial) - r ** 2))
+    double a, b, c;
+    a = dir.dot(dir);
+    b = 2 * dir.dot(radial);
+    c = radial.dot(radial) - 1;
+
+    double discriminant = b * b - 4 * a * c;
+
+    // There are always two solutions. Take the one in front.
+    t = (-1 * b + sqrt(discriminant)) / (2 * a); // Always positive since we're inside the sphere already.
+
+    if (!ray.intersection.none && t > ray.intersection.t_value) {
+        // Intersection point is behind another object.
+        return false;
+    }
+
+    x = t * dir[0] + origin[0];
+    y = t * dir[1] + origin[1];
+    z = t * dir[2] + origin[2];
+
+    // The normal points to the origin of the sphere
+    Vector3D normal(-x, -y, -z);
+    // Transform to world space.
+    normal = transNorm(worldToModel, normal);
+    normal.normalize();
+    ray.intersection.normal = normal;
+
+    Point3D intersection(x, y, z);
+    ray.intersection.point = modelToWorld * intersection;
+
+    ray.intersection.t_value = t;
+
+    ray.intersection.none = false;
+
+    return true;
+}

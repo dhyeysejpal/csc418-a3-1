@@ -142,6 +142,40 @@ Vector3D Vector3D::cross(const Vector3D& other) const
 			m_data[0]*other[1] - m_data[1]*other[0]);
 }
 
+// Create a unit normal to this vector. Useful for forming an orthonormal basis.
+Vector3D Vector3D::unit_normal() {
+	// Create a unit normal out of a single vector using the method described
+	// in Shirley section 2.4.6.
+	Vector3D w(*this);
+	w.normalize();
+	Vector3D t(w);
+
+	double x = std::abs(t[0]);
+	double y = std::abs(t[1]);
+	double z = std::abs(t[2]);
+
+	// Replace the smallest component in t with 1 to ensure that t is not 
+	// collinear with this vector.
+	if (x < y) {
+		if (x < z) {
+			t[0] = 1;
+		} else {
+			t[2] = 1;
+		}
+	} else {
+		if (y < z) {
+			t[1] = 1;
+		} else {
+			t[2] = 1;
+		}
+	}
+
+	Vector3D u = t.cross(w);
+	u.normalize();
+
+	return u;
+}
+
 Vector3D operator *(double s, const Vector3D& v)
 {
   return Vector3D(s*v[0], s*v[1], s*v[2]);
