@@ -519,7 +519,7 @@ int main(int argc, char* argv[])
     double factor1[3] = { 1.0, 2.0, 1.0 };
     double factor2[3] = { 4.0, 4.0, 4.0 };
     double table_factor[3] = { 24.0, 72.0, 1.0 };
-    double pool_ball_size[3] = { 3, 3, 3 };
+    double pool_ball_size[3] = { 0.8, 0.8, 0.8 };
     double sky_size[3] = { 1500, 1500, 1500 };
 
     // SceneDagNode *sky = raytracer.addObject(new DysonSphere(), &turquoise);

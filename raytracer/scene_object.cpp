@@ -185,51 +185,43 @@ bool RightCylinder::intersect( Ray3D& ray, const Matrix4x4& worldToModel,
     Vector3D dir = worldToModel * ray.dir;
     Point3D origin = worldToModel * (ray.origin - ray.time * get_velocity());
     // Define the normal as (0, 0, 1)
-    Vector3D normal(0, 0, 1);
+    Vector3D normal;
 
     // Solve: (x', y', z') = origin + t(dir), -0.5 <= x, y <= 0.5, z = 0
-    // => x' - origin.x = tx; y' - origin.y = ty; z' -origin.z = tz
-
-    if (dir[2] == 0) {
-        // ray is in the xy plane, so even if it intersects, the square won't be visible.
-        return false;
-    }
 
     // Solve z' = origin.z + t * z
     double x, y, t;
-    t = (0 - origin[2]) / dir[2];
+    double top_t, bottom_t, side_t;
 
-    if (t <= 0 || (!ray.intersection.none && t > ray.intersection.t_value)) {
-        // Looking away from the plane or intersection point is behind an
-        // earlier intersection, so don't update the intersection.
-        return false;
+    if (dir[2] != 0) {
+        top_t = (1 - origin[2]) / dir[2];
+
+        // Calculate point of intersection.
+        x = top_t * dir[0] + origin[0]; // x and y are in model coordinates.
+        y = top_t * dir[1] + origin[1];
+
+        if (pow(x, 2) + pow(y, 2) <= 1) {
+            
+            normal = transNorm(worldToModel, Vector3D(0, 0, 1));
+            normal.normalize();
+            ray.intersection.normal = normal;
+
+            t = top_t;
+
+            // Calculate the intersection point in world coordinates.
+            Point3D intersection(x, y, 0);
+            intersection = modelToWorld * intersection;
+
+            ray.intersection.point = intersection;
+
+            ray.intersection.t_value = t;
+
+            ray.intersection.none = false;
+
+            return true;
+        }
     }
-
-    // Calculate point of intersection.
-    x = t * dir[0] + origin[0]; // x and y are in model coordinates.
-    y = t * dir[1] + origin[1];
-
-    if (x >= -0.5 && x <= 0.5 && y >= -0.5 && y <= 0.5) {
-        
-        // Convert it to world space.
-        normal = transNorm(worldToModel, normal);
-        normal.normalize();
-        ray.intersection.normal = normal;
-
-
-
-        // Calculate the intersection point in world coordinates.
-        Point3D intersection(x, y, 0);
-        intersection = modelToWorld * intersection;
-
-        ray.intersection.point = intersection;
-
-        ray.intersection.t_value = t;
-
-        ray.intersection.none = false;
-
-        return true;
-    }
+    
 
     // Ray doesn't intersect within the unit square's bounds.
     return false;
