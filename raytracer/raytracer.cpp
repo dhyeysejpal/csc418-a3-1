@@ -511,61 +511,63 @@ int main(int argc, char* argv[])
         76.8, 0.9);
 
     // Add a unit square into the scene with material mat.
-    SceneDagNode* sphere = raytracer.addObject( new UnitSphere(), &gold );
-    SceneDagNode* plane = raytracer.addObject( new UnitSquare(), &jade );
-    SceneDagNode *table = raytracer.addObject(new UnitSquare(), &green_plastic);
+    // SceneDagNode* sphere = raytracer.addObject( new UnitSphere(), &gold );
+    // SceneDagNode* plane = raytracer.addObject( new UnitSquare(), &jade );
+    // SceneDagNode *table = raytracer.addObject(new UnitSquare(), &green_plastic);
     
     // Apply some transformations to the unit square.
     double factor1[3] = { 1.0, 2.0, 1.0 };
     double factor2[3] = { 4.0, 4.0, 4.0 };
     double table_factor[3] = { 24.0, 72.0, 1.0 };
-    double pool_ball_size[3] = { 0.8, 0.8, 0.8 };
+    double pool_ball_size[3] = { 3, 3, 3 };
     double sky_size[3] = { 1500, 1500, 1500 };
 
-    SceneDagNode *sky = raytracer.addObject(new DysonSphere(), &turquoise);
-        raytracer.scale(sky, Point3D(0, 0, 0), sky_size);
+    // SceneDagNode *sky = raytracer.addObject(new DysonSphere(), &turquoise);
+    //     raytracer.scale(sky, Point3D(0, 0, 0), sky_size);
 
-    SceneDagNode *ball1 = raytracer.addObject(new UnitSphere(), &pearl);
+    SceneDagNode *ball1 = raytracer.addObject(new RightCylinder(), &pearl);
         raytracer.translate(ball1, Vector3D(0, -2, 6));
         raytracer.scale(ball1, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball2 = raytracer.addObject(new UnitSphere(), &pearl);
-        raytracer.translate(ball2, Vector3D(1, -2, 10));
-        raytracer.scale(ball2, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball3 = raytracer.addObject(new UnitSphere(), &mirror);
-        raytracer.translate(ball3, Vector3D(-1, -2, 10));
-        raytracer.scale(ball3, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball4 = raytracer.addObject(new UnitSphere(), &chrome);
-        raytracer.translate(ball4, Vector3D(2, -2, 14));
-        raytracer.scale(ball4, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball5 = raytracer.addObject(new UnitSphere(), &mirror);
-        raytracer.translate(ball5, Vector3D(0, -2, 14));
-        raytracer.scale(ball5, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball6 = raytracer.addObject(new UnitSphere(), &pearl);
-        raytracer.translate(ball6, Vector3D(-2, -2, 14));
-        raytracer.scale(ball6, Point3D(0, 0, 0), pool_ball_size);
-        ball6->obj->set_velocity(Vector3D(0, 2.0, 0));
-    SceneDagNode *ball7 = raytracer.addObject(new UnitSphere(), &pearl);
-        raytracer.translate(ball7, Vector3D(3, -2, 18));
-        raytracer.scale(ball7, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *ball8 = raytracer.addObject(new UnitSphere(), &pearl);
-        raytracer.translate(ball8, Vector3D(-3, -2, 18));
-        raytracer.scale(ball8, Point3D(0, 0, 0), pool_ball_size);
-    SceneDagNode *cue = raytracer.addObject(new UnitSphere(), &pearl);
-        raytracer.translate(cue, Vector3D(0, -2, 32));
-        raytracer.scale(cue, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball2 = raytracer.addObject(new UnitSphere(), &pearl);
+    //     raytracer.translate(ball2, Vector3D(1, -2, 10));
+    //     raytracer.scale(ball2, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball3 = raytracer.addObject(new UnitSphere(), &mirror);
+    //     raytracer.translate(ball3, Vector3D(-1, -2, 10));
+    //     raytracer.scale(ball3, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball4 = raytracer.addObject(new UnitSphere(), &chrome);
+    //     raytracer.translate(ball4, Vector3D(2, -2, 14));
+    //     raytracer.scale(ball4, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball5 = raytracer.addObject(new UnitSphere(), &mirror);
+    //     raytracer.translate(ball5, Vector3D(0, -2, 14));
+    //     raytracer.scale(ball5, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball6 = raytracer.addObject(new UnitSphere(), &pearl);
+    //     raytracer.translate(ball6, Vector3D(-2, -2, 14));
+    //     raytracer.scale(ball6, Point3D(0, 0, 0), pool_ball_size);
+    //     ball6->obj->set_velocity(Vector3D(0, 2.0, 0));
+    // SceneDagNode *ball7 = raytracer.addObject(new UnitSphere(), &pearl);
+    //     raytracer.translate(ball7, Vector3D(3, -2, 18));
+    //     raytracer.scale(ball7, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *ball8 = raytracer.addObject(new UnitSphere(), &pearl);
+    //     raytracer.translate(ball8, Vector3D(-3, -2, 18));
+    //     raytracer.scale(ball8, Point3D(0, 0, 0), pool_ball_size);
+    // SceneDagNode *cue = raytracer.addObject(new UnitSphere(), &pearl);
+    //     raytracer.translate(cue, Vector3D(0, -2, 32));
+    //     raytracer.scale(cue, Point3D(0, 0, 0), pool_ball_size);
 
-    raytracer.translate(sphere, Vector3D(0, 0, -5));    
-    raytracer.rotate(sphere, 'x', -45); 
-    raytracer.rotate(sphere, 'z', 45); 
-    raytracer.scale(sphere, Point3D(0, 0, 0), factor1);
+    // SceneDagNode *stick = raytracer.addObject(new RightCylinder(), &gold);
 
-    raytracer.translate(table, Vector3D(0, -3, 0));
-    raytracer.rotate(table, 'x', 270);
-    raytracer.scale(table, Point3D(0, 0, 0), table_factor);
+    // raytracer.translate(sphere, Vector3D(0, 0, -5));    
+    // raytracer.rotate(sphere, 'x', -45); 
+    // raytracer.rotate(sphere, 'z', 45); 
+    // raytracer.scale(sphere, Point3D(0, 0, 0), factor1);
 
-    raytracer.translate(plane, Vector3D(0, 0, -7)); 
-    raytracer.rotate(plane, 'z', 45);
-    raytracer.scale(plane, Point3D(0, 0, 0), factor2);
+    // raytracer.translate(table, Vector3D(0, -3, 0));
+    // raytracer.rotate(table, 'x', 270);
+    // raytracer.scale(table, Point3D(0, 0, 0), table_factor);
+
+    // raytracer.translate(plane, Vector3D(0, 0, -7)); 
+    // raytracer.rotate(plane, 'z', 45);
+    // raytracer.scale(plane, Point3D(0, 0, 0), factor2);
     
     // Render it from a different point of view.
     Point3D eye2(20, 10, 28);
